@@ -1,23 +1,25 @@
+import axios from 'axios';
+import { headers } from 'next/dist/client/components/headers';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useEffect } from 'react';
+import { isMobile } from 'react-device-detect';
 
 interface Metadata {
   title: string;
-  description: string;
+  description?: string;
   image: string;
-  // Agrega otras propiedades de metadata si las tienes
 }
 
 const MyPage = ({ metadata }: { metadata: Metadata }) => {
   const router = useRouter();
 
   useEffect(() => {
-    const redirectTimer = setTimeout(() => {
-      router.push('http://localhost:19006/nft?type=nft&id=0xeb0c72328771ee802d2c052531478ecef755e39916');
-    }, 0);
+    if (isMobile) {
+      window.location.href = `${process.env.CLIENT}://share?type=${router.query.type}&id=${router.query.id}`;
+    }
 
-    return () => clearTimeout(redirectTimer); // Limpia el temporizador al desmontar el componente
+    router.push(`${process.env.CLIENT_URL}share?type=${router.query.type}&id=${router.query.id}`);
   }, []);
 
   return (
@@ -26,31 +28,41 @@ const MyPage = ({ metadata }: { metadata: Metadata }) => {
         <meta property="og:title" content={metadata.title} />
         <meta property="og:description" content={metadata.description} />
         <meta property="og:image" content={metadata.image} />
-        {/* ... otras metadatas que necesites ... */}
       </Head>
-      {/* Resto del contenido de la página */}
     </>
   );
 };
 
-export async function getServerSideProps() {
-  // Realizar la solicitud HTTP al servidor para obtener los datos de las metadatas
-  // const response = await axios.get('https://api.example.com/metadata');
-  const response = {
-    description: "Works of great realism, inspired by a dystopian Japanese anime",
-    image: "https://ipfs.io/ipfs/QmfQE6WQJjB5Z8mEJxVSVZjDYfgHVYZBUYzjRyX4fPck5U",
-    title: "Illustrations of Japan"
+
+export async function getServerSideProps(context: any) {
+  const { query } = context;
+  const { id, blockchain, network, type } = query;
+  const headers = { headers: { wallet: process.env.CLIENT_ID || "" } }
+  let url = process.env.API_URL || ""
+
+  switch (type) {
+    case 'nft': url = `${process.env.API_URL}api/${blockchain}/${network}/nft/${id}`
+      break;
+    case 'post': url = `${process.env.API_URL}api/posts/${id}`
+      break;
+    default:
+      break;
   }
 
-  // Extraer los datos de las metadatas de la respuesta
-  const metadata: Metadata = response;
+  const response = await axios(url, headers)
 
-  // Devolver los datos como prop para el componente
+  const metadata: Metadata = {
+    title: response.data.metadata.name || "",
+    description: response.data.metadata.description || "",
+    image: response.data.metadata.image || "",
+  }
+
   return {
     props: {
-      metadata
+      metadata: metadata,
     }
   };
 }
 
 export default MyPage;
+
